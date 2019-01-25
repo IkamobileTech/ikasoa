@@ -1,6 +1,7 @@
 package com.ikasoa.core.security.impl;
 
 import com.ikasoa.core.security.SymmetricKeyEncrypt;
+import com.ikasoa.core.utils.StringUtil;
 
 import lombok.NoArgsConstructor;
 
@@ -24,7 +25,7 @@ public class RC4EncryptImpl implements SymmetricKeyEncrypt {
 	 */
 	@Override
 	public String encrypt(String data, String key) {
-		if (data == null || key == null)
+		if (StringUtil.orIsEmpty(data, key))
 			return null;
 		return toHexString(asString(encryptByte(data, key)));
 	}
@@ -40,7 +41,7 @@ public class RC4EncryptImpl implements SymmetricKeyEncrypt {
 	 */
 	@Override
 	public String decrypt(String data, String key) {
-		if (data == null || key == null)
+		if (StringUtil.orIsEmpty(data, key))
 			return null;
 		return new String(rc4Base(toBytes(data), key));
 	}
@@ -55,7 +56,7 @@ public class RC4EncryptImpl implements SymmetricKeyEncrypt {
 	 * @return 返回经过加密后的数据 (byte)
 	 */
 	public byte[] encryptByte(String data, String key) {
-		if (data == null || key == null)
+		if (StringUtil.orIsEmpty(data, key))
 			return null;
 		return rc4Base(data.getBytes(), key);
 	}
@@ -70,7 +71,7 @@ public class RC4EncryptImpl implements SymmetricKeyEncrypt {
 	 * @return 返回解密后的数据
 	 */
 	public String decrypt(byte[] data, String key) {
-		if (data == null || key == null)
+		if (data == null || StringUtil.isEmpty(key))
 			return null;
 		return asString(rc4Base(data, key));
 	}
@@ -106,7 +107,7 @@ public class RC4EncryptImpl implements SymmetricKeyEncrypt {
 			String s4 = Integer.toHexString(ch & 0xFF);
 			if (s4.length() == 1)
 				s4 = "0" + s4;
-			str = str + s4;
+			str += s4;
 		}
 		return str; // 0x表示十六进制
 	}
