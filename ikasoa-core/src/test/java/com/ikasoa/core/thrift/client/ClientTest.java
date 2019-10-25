@@ -1,6 +1,5 @@
 package com.ikasoa.core.thrift.client;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.Test;
@@ -9,8 +8,9 @@ import com.ikasoa.core.TestConstants;
 import com.ikasoa.core.loadbalance.ServerInfo;
 import com.ikasoa.core.loadbalance.impl.PollingLoadBalanceImpl;
 import com.ikasoa.core.thrift.GeneralFactory;
-import com.ikasoa.core.thrift.client.impl.DefaultThriftClientImpl;
 import com.ikasoa.core.thrift.client.impl.LoadBalanceThriftClientImpl;
+import com.ikasoa.core.thrift.client.impl.ThriftClientImpl;
+import com.ikasoa.core.utils.ListUtil;
 import com.ikasoa.core.utils.ServerUtil;
 
 import junit.framework.TestCase;
@@ -26,16 +26,15 @@ public class ClientTest extends TestCase {
 	private ThriftClientConfiguration configuration = new ThriftClientConfiguration();
 
 	/**
-	 * 默认客户端测试
+	 * 客户端测试
 	 */
 	@Test
-	public void testDefaultThriftClientImpl() {
+	public void testThriftClientImpl() {
 		int serverPort = ServerUtil.getNewPort();
-		try (ThriftClient defaultThriftClient = new DefaultThriftClientImpl(TestConstants.LOCAL_HOST, serverPort,
-				configuration)) {
-			assertEquals(defaultThriftClient.getServerHost(), TestConstants.LOCAL_HOST);
-			assertEquals(defaultThriftClient.getServerPort(), serverPort);
-			assertEquals(defaultThriftClient.getThriftClientConfiguration(), configuration);
+		try (ThriftClient thriftClient = new ThriftClientImpl(TestConstants.LOCAL_HOST, serverPort, configuration)) {
+			assertEquals(thriftClient.getServerHost(), TestConstants.LOCAL_HOST);
+			assertEquals(thriftClient.getServerPort(), serverPort);
+			assertEquals(thriftClient.getThriftClientConfiguration(), configuration);
 		} catch (Exception e) {
 			fail();
 		}
@@ -48,8 +47,7 @@ public class ClientTest extends TestCase {
 	public void testLoadBalanceThriftClientImpl() {
 		String serverHost1 = TestConstants.LOCAL_HOST;
 		int serverPort1 = ServerUtil.getNewPort();
-		List<ServerInfo> serverInfoList = new ArrayList<>();
-		serverInfoList.add(new ServerInfo(serverHost1, serverPort1));
+		List<ServerInfo> serverInfoList = ListUtil.buildArrayList(new ServerInfo(serverHost1, serverPort1));
 		// 以下测试利用自定义负载均衡类型通过GeneralFactory获取Client对象
 		try {
 			@Cleanup

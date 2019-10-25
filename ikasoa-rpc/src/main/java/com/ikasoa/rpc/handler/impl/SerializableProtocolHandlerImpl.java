@@ -1,9 +1,10 @@
 package com.ikasoa.rpc.handler.impl;
 
+import com.ikasoa.core.utils.ObjectUtil;
+import com.ikasoa.core.utils.StreamUtil;
 import com.ikasoa.core.utils.StringUtil;
 import com.ikasoa.rpc.handler.ProtocolHandler;
 import com.ikasoa.rpc.handler.ReturnData;
-import com.ikasoa.rpc.utils.StreamUtil;
 
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
@@ -35,7 +36,7 @@ public class SerializableProtocolHandlerImpl<T, R> implements ProtocolHandler<T,
 
 	@Override
 	public String resultToStr(R result) {
-		if (result == null)
+		if (ObjectUtil.isNull(result))
 			return String.valueOf(V);
 		return StringUtil.bytesToHexStr(StreamUtil.objectToBytes(result));
 	}
@@ -43,7 +44,7 @@ public class SerializableProtocolHandlerImpl<T, R> implements ProtocolHandler<T,
 	@Override
 	@SuppressWarnings("unchecked")
 	public R strToResult(String str) {
-		if (String.valueOf(V).equals(str))
+		if (StringUtil.equals(String.valueOf(V), str))
 			return null;
 		return (R) StreamUtil.bytesToObject(StringUtil.hexStrToBytes(str));
 	}

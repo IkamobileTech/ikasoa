@@ -2,7 +2,6 @@ package com.ikasoa.rpc;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,6 +16,8 @@ import com.ikasoa.core.thrift.client.ThriftClientConfiguration;
 import com.ikasoa.core.thrift.server.ThriftServer;
 import com.ikasoa.core.thrift.server.ThriftServerConfiguration;
 import com.ikasoa.core.thrift.service.Service;
+import com.ikasoa.core.utils.MapUtil;
+import com.ikasoa.core.utils.ObjectUtil;
 import com.ikasoa.core.utils.StringUtil;
 import com.ikasoa.rpc.annotation.IkasoaService;
 import com.ikasoa.rpc.annotation.Invalid;
@@ -52,17 +53,17 @@ public class DefaultIkasoaFactory extends GeneralFactory implements IkasoaFactor
 	}
 
 	public DefaultIkasoaFactory(Configurator configurator) {
-		if (configurator != null) {
+		if (ObjectUtil.isNotNull(configurator)) {
 			this.configurator = configurator;
-			if (configurator.getThriftServerConfiguration() != null)
+			if (ObjectUtil.isNotNull(configurator.getThriftServerConfiguration()))
 				thriftServerConfiguration = configurator.getThriftServerConfiguration();
-			if (configurator.getThriftClientConfiguration() != null)
+			if (ObjectUtil.isNotNull(configurator.getThriftClientConfiguration()))
 				thriftClientConfiguration = configurator.getThriftClientConfiguration();
 		}
 	}
 
 	public DefaultIkasoaFactory(ServerInfoWrapper siw) {
-		if (siw != null && !siw.isNotNull())
+		if (ObjectUtil.isNotNull(siw) && !siw.isNotNull())
 			configurator = new Configurator(siw);
 	}
 
@@ -70,11 +71,15 @@ public class DefaultIkasoaFactory extends GeneralFactory implements IkasoaFactor
 		return getInstance(iClass, configurator.getServerInfoWrapper());
 	}
 
+	public <T> T getInstance(Class<T> iClass, String host, int port) {
+		return getInstance(iClass, new ServerInfoWrapper(host, port));
+	}
+
 	@SuppressWarnings("unchecked")
 	public <T> T getInstance(Class<T> iClass, ServerInfoWrapper siw) {
-		if (iClass == null)
+		if (ObjectUtil.isNull(iClass))
 			throw new IllegalArgumentException();
-		if (siw == null || !siw.isNotNull())
+		if (ObjectUtil.isNull(siw) || !siw.isNotNull())
 			throw new IllegalArgumentException("'serverInfoWrapper' is exist !");
 		return (T) Proxy
 				.newProxyInstance(iClass.getClassLoader(),
@@ -84,7 +89,7 @@ public class DefaultIkasoaFactory extends GeneralFactory implements IkasoaFactor
 								args) -> getBaseGetServiceFactory()
 										.getBaseGetService(
 												siw.isCluster()
-														? siw.getLoadBalance() == null
+														? ObjectUtil.isNull(siw.getLoadBalance())
 																? getThriftClient(siw.getServerInfoList())
 																: getThriftClient(siw.getServerInfoList(),
 																		siw.getLoadBalance(), siw.getParam())
@@ -116,19 +121,13 @@ public class DefaultIkasoaFactory extends GeneralFactory implements IkasoaFactor
 
 	@Override
 	public IkasoaServer getIkasoaServer(List<ImplWrapper> implWrapperList, int serverPort) throws RpcException {
-		Map<String, Service> serviceMap = new HashMap<>();
-		for (ImplWrapper implWrapper : implWrapperList)
-			serviceMap.putAll(getServiceMapByImplWrapper(implWrapper));
-		return getIkasoaServer(serverPort, serviceMap);
+		return getIkasoaServer(serverPort, getServiceMapByWrapperList(implWrapperList));
 	}
 
 	@Override
 	public IkasoaServer getIkasoaServer(String serverName, List<ImplWrapper> implWrapperList, int serverPort)
 			throws RpcException {
-		Map<String, Service> serviceMap = new HashMap<>();
-		for (ImplWrapper implWrapper : implWrapperList)
-			serviceMap.putAll(getServiceMapByImplWrapper(implWrapper));
-		return getIkasoaServer(serverName, serverPort, serviceMap);
+		return getIkasoaServer(serverName, serverPort, getServiceMapByWrapperList(implWrapperList));
 	}
 
 	@Override
@@ -188,43 +187,50 @@ public class DefaultIkasoaFactory extends GeneralFactory implements IkasoaFactor
 				: super.getThriftServer(serverName, serverPort, processor);
 	}
 
-	private Map<String, Service> getServiceMapByImplWrapper(ImplWrapper implWrapper) throws RpcException {
-		return getServiceMapByClass(new HashMap<String, Service>(), implWrapper.getImplClass(),
-				implWrapper.getImplObject(), implWrapper.getImplClass());
+	private Map<String, Service> getServiceMapByImplWrapper(ImplWrapper implWrapper) {
+		return getServiceMapByClass(MapUtil.newHashMap(), implWrapper.getImplClass(), implWrapper.getImplObject(),
+				implWrapper.getImplClass());
 	}
 
 	private Map<String, Service> getServiceMapByClass(Map<String, Service> serviceMap, Class<?> implClass,
-			Object implObject, Class<?> superClass) throws RpcException {
-		if (implClass == null)
+			Object implObject, Class<?> superClass) {
+		if (ObjectUtil.isNull(implClass))
 			throw new IllegalArgumentException("Implement 'class' is not null !");
-		if (superClass == null)
+		if (ObjectUtil.isNull(superClass))
 			throw new IllegalArgumentException("Implement 'superClass' is not null !");
 		if (implClass.getInterfaces().length == 0)
 			log.warn("Class ({}) is not this interface implement class , Will ignore .", implClass.getName());
 		for (Class<?> iClass : superClass.getInterfaces())
 			buildService(serviceMap, iClass, implClass, implObject);
-		if (superClass.getSuperclass() != null && !Object.class.equals(superClass.getSuperclass()))
+		if (ObjectUtil.isNotNull(superClass.getSuperclass()) && !Object.class.equals(superClass.getSuperclass()))
 			serviceMap.putAll(getServiceMapByClass(serviceMap, implClass, implObject, superClass.getSuperclass()));
+		return serviceMap;
+	}
+
+	private Map<String, Service> getServiceMapByWrapperList(List<ImplWrapper> implWrapperList) {
+		Map<String, Service> serviceMap = MapUtil.newHashMap();
+		implWrapperList.forEach(implWrapper -> serviceMap.putAll(getServiceMapByImplWrapper(implWrapper)));
 		return serviceMap;
 	}
 
 	@SneakyThrows
 	private void buildService(Map<String, Service> serviceMap, Class<?> iClass, Class<?> implClass, Object implObject) {
-		if (implObject == null)
+		if (ObjectUtil.isNull(implObject))
 			implObject = implClass.newInstance();
 		ProtocolHandlerFactory<Object[], Object> protocolHandlerFactory = new ProtocolHandlerFactory<>();
 		for (Method implMethod : implClass.getMethods()) {
-			boolean isValidMethod = Boolean.FALSE;
+			boolean isValidMethod = false;
 			// 对hashCode和toString两个方法做特殊处理
-			if ("hashCode".equals(implMethod.getName()) || "toString".equals(implMethod.getName()))
-				isValidMethod = Boolean.TRUE;
+			if (StringUtil.equals("hashCode", implMethod.getName())
+					|| StringUtil.equals("toString", implMethod.getName()))
+				isValidMethod = true;
 			else
 				// 过滤掉无效方法
 				for (Method iMethod : iClass.getMethods())
-				if (!iMethod.isAnnotationPresent(Invalid.class) && compareMethod(iMethod, implMethod)) {
-				isValidMethod = Boolean.TRUE;
-				break;
-				}
+					if (!iMethod.isAnnotationPresent(Invalid.class) && compareMethod(iMethod, implMethod)) {
+						isValidMethod = true;
+						break;
+					}
 			if (!isValidMethod)
 				continue;
 			String sKey = getSKey(iClass, implMethod, false);
@@ -247,19 +253,19 @@ public class DefaultIkasoaFactory extends GeneralFactory implements IkasoaFactor
 
 	// 比较两个方法是否相同
 	private boolean compareMethod(Method m1, Method m2) {
-		if (m1 != null && m2 != null && m1.getName().equals(m2.getName())
+		if (!ObjectUtil.orIsNull(m1, m2) && StringUtil.equals(m1.getName(), m2.getName())
 				&& m1.getParameterTypes().length == m2.getParameterTypes().length
-				&& m1.getReturnType().getName().equals(m2.getReturnType().getName())) {
+				&& StringUtil.equals(m1.getReturnType().getName(), m2.getReturnType().getName())) {
 			for (int i = 0; i < m1.getParameterTypes().length; i++)
-				if (!m1.getParameterTypes()[i].getName().equals(m2.getParameterTypes()[i].getName()))
-					return Boolean.FALSE;
-			return Boolean.TRUE;
+				if (!StringUtil.equals(m1.getParameterTypes()[i].getName(), m2.getParameterTypes()[i].getName()))
+					return false;
+			return true;
 		} else
-			return Boolean.FALSE;
+			return false;
 	}
 
 	private String getSKey(Class<?> iClass, Method method, boolean isCheckValid) {
-		if (isCheckValid && (iClass == null || method == null || method.isAnnotationPresent(Invalid.class)))
+		if (isCheckValid && (ObjectUtil.orIsNull(iClass, method) || method.isAnnotationPresent(Invalid.class)))
 			return null;
 		return Optional.ofNullable(iClass.getAnnotation(IkasoaService.class))
 				.map(s -> new ServiceKey(s.name(), method).toString())

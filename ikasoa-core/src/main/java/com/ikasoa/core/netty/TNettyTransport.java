@@ -18,7 +18,7 @@ import lombok.Setter;
  */
 public class TNettyTransport extends TTransport {
 
-	private static final int DEFAULT_OUTPUT_BUFFER_SIZE = 1024;
+	private static final int DEFAULT_OUTPUT_BUFFER_SIZE = 0x400;
 
 	private final Channel channel;
 
@@ -53,7 +53,6 @@ public class TNettyTransport extends TTransport {
 		this.tNettyTransportType = tNettyTransportType;
 		this.outputBuffer = ChannelBuffers.dynamicBuffer(DEFAULT_OUTPUT_BUFFER_SIZE);
 		this.initialReaderIndex = inputBuffer.readerIndex();
-
 		if (!inputBuffer.hasArray()) {
 			buffer = null;
 			bufferPosition = 0;

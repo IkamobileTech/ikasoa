@@ -1,7 +1,6 @@
 package com.ikasoa.core.thrift;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -18,18 +17,20 @@ import com.ikasoa.core.loadbalance.impl.PollingLoadBalanceImpl;
 import com.ikasoa.core.thrift.client.AsyncMultiplexedProtocolFactory;
 import com.ikasoa.core.thrift.client.ThriftClient;
 import com.ikasoa.core.thrift.client.ThriftClientConfiguration;
-import com.ikasoa.core.thrift.client.impl.DefaultThriftClientImpl;
+import com.ikasoa.core.thrift.client.impl.ThriftClientImpl;
 import com.ikasoa.core.thrift.client.impl.LoadBalanceThriftClientImpl;
 import com.ikasoa.core.thrift.server.MultiplexedProcessor;
 import com.ikasoa.core.thrift.server.ThriftServer;
 import com.ikasoa.core.thrift.server.ThriftServerConfiguration;
-import com.ikasoa.core.thrift.server.impl.DefaultThriftServerImpl;
 import com.ikasoa.core.thrift.server.impl.NonblockingThriftServerImpl;
+import com.ikasoa.core.thrift.server.impl.ThreadPoolThriftServerImpl;
 import com.ikasoa.core.thrift.service.AsyncService;
 import com.ikasoa.core.thrift.service.Service;
 import com.ikasoa.core.thrift.service.ServiceProcessor;
 import com.ikasoa.core.thrift.service.impl.AsyncServiceClientImpl;
 import com.ikasoa.core.thrift.service.impl.ServiceClientImpl;
+import com.ikasoa.core.utils.MapUtil;
+import com.ikasoa.core.utils.ObjectUtil;
 import com.ikasoa.core.utils.StringUtil;
 
 import lombok.AllArgsConstructor;
@@ -70,11 +71,11 @@ public class GeneralFactory implements Factory {
 	}
 
 	/**
-	 * 获取默认的ThriftServer对象
+	 * 获取ThriftServer对象
 	 */
 	@Override
 	public ThriftServer getThriftServer(String serverName, int serverPort, TProcessor processor) {
-		return new DefaultThriftServerImpl(serverName, serverPort, thriftServerConfiguration, processor);
+		return new ThreadPoolThriftServerImpl(serverName, serverPort, thriftServerConfiguration, processor);
 	}
 
 	/**
@@ -151,11 +152,11 @@ public class GeneralFactory implements Factory {
 	}
 
 	/**
-	 * 获取默认的ThriftClient对象
+	 * 获取ThriftClient对象
 	 */
 	@Override
 	public ThriftClient getThriftClient(String serverHost, int serverPort) {
-		return new DefaultThriftClientImpl(serverHost, serverPort, thriftClientConfiguration);
+		return new ThriftClientImpl(serverHost, serverPort, thriftClientConfiguration);
 	}
 
 	/**
@@ -206,7 +207,7 @@ public class GeneralFactory implements Factory {
 	 */
 	@Override
 	public Service getService(ThriftClient thriftClient, String serviceName) throws IkasoaException {
-		if (thriftClient == null)
+		if (ObjectUtil.isNull(thriftClient))
 			throw new IllegalArgumentException("'thriftClient' is null !");
 		return StringUtil.isEmpty(serviceName)
 				? new ServiceClientImpl(thriftClient.getProtocol(thriftClient.getTransport()))
@@ -218,7 +219,7 @@ public class GeneralFactory implements Factory {
 	 */
 	@Override
 	public AsyncService getAsyncService(TNonblockingTransport transport, String serviceName) throws IkasoaException {
-		if (transport == null)
+		if (ObjectUtil.isNull(transport))
 			throw new IllegalArgumentException("'transport' is null !");
 		try {
 			return StringUtil.isEmpty(serviceName)
@@ -230,9 +231,9 @@ public class GeneralFactory implements Factory {
 	}
 
 	private MultiplexedProcessor buildMultiplexedProcessor(Map<String, Service> serviceMap) {
-		if (serviceMap == null)
+		if (ObjectUtil.isNull(serviceMap))
 			throw new IllegalArgumentException("'serviceMap' is null !");
-		Map<String, TProcessor> processorMap = new HashMap<>(serviceMap.size());
+		Map<String, TProcessor> processorMap = MapUtil.newHashMap(serviceMap.size());
 		for (Entry<String, Service> e : serviceMap.entrySet())
 			processorMap.put(e.getKey(), new ServiceProcessor(serviceMap.get(e.getKey())));
 		return new MultiplexedProcessor(processorMap);

@@ -1,15 +1,16 @@
 package com.ikasoa.rpc.handler.impl;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Optional;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import com.ikasoa.core.utils.Base64Util;
+import com.ikasoa.core.utils.ListUtil;
+import com.ikasoa.core.utils.MapUtil;
+import com.ikasoa.core.utils.StringUtil;
 import com.ikasoa.rpc.handler.ProtocolHandler;
 import com.ikasoa.rpc.handler.ReturnData;
-import com.ikasoa.rpc.utils.Base64Util;
 
 import lombok.NoArgsConstructor;
 
@@ -41,35 +42,37 @@ public class KryoProtocolHandlerImpl<T, R> implements ProtocolHandler<T, R> {
 	@SuppressWarnings("unchecked")
 	public String argToStr(T arg) {
 		arg = Optional.ofNullable(arg).orElse((T) new Object[0]);
-		Output output = new Output(1, 4096);
-		kryo.writeObject(output, arg);
-		byte[] bb = output.toBytes();
-		output.flush();
-		return Base64Util.encode(bb);
+		try (Output output = new Output(1, 4096)) {
+			kryo.writeObject(output, arg);
+			byte[] bb = output.toBytes();
+			output.flush();
+			return Base64Util.encode(bb);
+		}
 	}
 
 	@Override
+	@SuppressWarnings("unchecked")
 	public String resultToStr(R result) {
-		if (result == null)
-			return String.valueOf(V);
-		Output output = new Output(1, 4096);
-		kryo.writeObject(output, result);
-		byte[] bb = output.toBytes();
-		output.flush();
-		return Base64Util.encode(bb);
+		result = Optional.ofNullable(result).orElse((R) String.valueOf(V));
+		try (Output output = new Output(1, 4096)) {
+			kryo.writeObject(output, result);
+			byte[] bb = output.toBytes();
+			output.flush();
+			return Base64Util.encode(bb);
+		}
 	}
 
 	@Override
 	@SuppressWarnings("unchecked")
 	public R strToResult(String str) {
-		if (String.valueOf(V).equals(str))
+		if (StringUtil.equals(String.valueOf(V), str))
 			return null;
 		return resultData.isArray()
 				? (R) kryo.readObject(new Input(Base64Util.decode(str)),
-						kryo.register((new ArrayList<>()).getClass()).getType())
+						kryo.register(ListUtil.getArrayListClass()).getType())
 				: resultData.isMap()
 						? (R) kryo.readObject(new Input(Base64Util.decode(str)),
-								kryo.register((new HashMap<>()).getClass()).getType())
+								kryo.register(MapUtil.getHashMapClass()).getType())
 						: (R) kryo.readObject(new Input(Base64Util.decode(str)),
 								kryo.register(resultData.getClassType()).getType());
 	}

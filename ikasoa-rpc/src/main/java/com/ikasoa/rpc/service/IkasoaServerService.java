@@ -4,6 +4,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 
+import com.ikasoa.core.utils.ObjectUtil;
 import com.ikasoa.rpc.RpcException;
 import com.ikasoa.rpc.handler.ProtocolHandler;
 
@@ -36,17 +37,17 @@ public class IkasoaServerService extends AbstractGetService<Object[], Object> {
 
 	@Override
 	public Object get(Object[] args) throws RpcException {
-		if (method == null)
+		if (ObjectUtil.isNull(method))
 			throw new RpcException("'method' is null !");
-		if (classObj == null)
+		if (ObjectUtil.isNull(classObj))
 			throw new RpcException("'classObj' is null !");
-		if (args == null) {
+		if (ObjectUtil.isNull(args)) {
 			log.debug("'args' is null , Will create default args object .");
 			args = new Object[] {};
 		}
 		log.debug("Execute class '{}' function '{}' , parameters is '{}' .", classObj.getClass().getName(),
 				method.getName(), Arrays.toString(args));
-		method.setAccessible(Boolean.TRUE);
+		method.setAccessible(true);
 		try {
 			return method.invoke(classObj, args);
 		} catch (IllegalAccessException | IllegalArgumentException e) {

@@ -19,8 +19,9 @@ import org.jboss.netty.util.Timer;
 import org.jboss.netty.util.TimerTask;
 
 import com.ikasoa.core.netty.server.NettyServerConfiguration;
+import com.ikasoa.core.utils.MapUtil;
+import com.ikasoa.core.utils.ObjectUtil;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -44,7 +45,7 @@ public class NettyDispatcher extends SimpleChannelUpstreamHandler {
 	private final Timer taskTimeoutTimer;
 	private final long queueTimeoutMillis;
 	private final short queuedResponseLimit;
-	private final Map<Integer, TNettyMessage> responseMap = new HashMap<>();
+	private final Map<Integer, TNettyMessage> responseMap = MapUtil.newHashMap();
 	private final AtomicInteger dispatcherSequenceId = new AtomicInteger(0);
 	private final AtomicInteger lastResponseWrittenId = new AtomicInteger(0);
 	private final TProtocolFactory protocolFactory;
@@ -103,17 +104,19 @@ public class NettyDispatcher extends SimpleChannelUpstreamHandler {
 					if (queueTimeoutMillis > 0)
 						if (timeElapsed >= queueTimeoutMillis) {
 							sendTApplicationException(
-									new TApplicationException(TApplicationException.INTERNAL_ERROR, String.format(
-											"Task stayed on the queue for %d milliseconds, exceeding configured queue timeout of %d milliseconds .",
-											timeElapsed, queueTimeoutMillis)),
+									new TApplicationException(TApplicationException.INTERNAL_ERROR,
+											String.format(
+													"Task stayed on the queue for %d milliseconds, exceeding configured queue timeout of %d milliseconds .",
+													timeElapsed, queueTimeoutMillis)),
 									ctx, message, requestSequenceId, messageTransport, inProtocol, outProtocol);
 							return;
 						} else if (taskTimeoutMillis > 0)
 							if (timeElapsed >= taskTimeoutMillis) {
 								sendTApplicationException(
-										new TApplicationException(TApplicationException.INTERNAL_ERROR, String.format(
-												"Task stayed on the queue for %d milliseconds, exceeding configured task timeout of %d milliseconds .",
-												timeElapsed, taskTimeoutMillis)),
+										new TApplicationException(TApplicationException.INTERNAL_ERROR,
+												String.format(
+														"Task stayed on the queue for %d milliseconds, exceeding configured task timeout of %d milliseconds .",
+														timeElapsed, taskTimeoutMillis)),
 										ctx, message, requestSequenceId, messageTransport, inProtocol, outProtocol);
 								return;
 							} else
@@ -126,13 +129,13 @@ public class NettyDispatcher extends SimpleChannelUpstreamHandler {
 								if (responseSent.compareAndSet(false, true)) {
 									ChannelBuffer duplicateBuffer = message.getBuffer().duplicate();
 									duplicateBuffer.resetReaderIndex();
-									TNettyTransport temporaryTransport = new TNettyTransport(ctx.getChannel(),
-											duplicateBuffer, message.getTransportType());
 									TProtocol protocol = protocolFactory.getProtocol(messageTransport);
 									sendTApplicationException(
 											new TApplicationException(TApplicationException.INTERNAL_ERROR,
 													"Task timed out while executing ."),
-											ctx, message, requestSequenceId, temporaryTransport, protocol, protocol);
+											ctx, message, requestSequenceId, new TNettyTransport(ctx.getChannel(),
+													duplicateBuffer, message.getTransportType()),
+											protocol, protocol);
 								}
 							}
 						}, timeRemaining, TimeUnit.MILLISECONDS));
@@ -153,15 +156,15 @@ public class NettyDispatcher extends SimpleChannelUpstreamHandler {
 		}
 	}
 
-	private void sendTApplicationException(TApplicationException x, ChannelHandlerContext ctx, TNettyMessage request,
+	private void sendTApplicationException(TApplicationException e, ChannelHandlerContext ctx, TNettyMessage request,
 			int responseSequenceId, TNettyTransport requestTransport, TProtocol inProtocol, TProtocol outProtocol) {
 		if (ctx.getChannel().isConnected()) {
 			try {
 				TMessage message = inProtocol.readMessageBegin();
 				outProtocol.writeMessageBegin(new TMessage(message.name, TMessageType.EXCEPTION, message.seqid));
-				x.write(outProtocol);
+				e.write(outProtocol);
 				outProtocol.writeMessageEnd();
-				requestTransport.setTApplicationException(x);
+				requestTransport.setTApplicationException(e);
 				outProtocol.getTransport().flush();
 				writeResponse(ctx, request.getMessageFactory().create(requestTransport.getOutputBuffer()),
 						responseSequenceId, DispatcherContext.isResponseOrderingRequired(ctx));
@@ -199,7 +202,6 @@ public class NettyDispatcher extends SimpleChannelUpstreamHandler {
 					++currentResponseId;
 					response = responseMap.remove(currentResponseId);
 				} while (null != response);
-				
 				if (DispatcherContext.isChannelReadBlocked(ctx)
 						&& dispatcherSequenceId.get() <= lastResponseWrittenId.get() + queuedResponseLimit)
 					DispatcherContext.unblockChannelReads(ctx);
@@ -233,7 +235,7 @@ public class NettyDispatcher extends SimpleChannelUpstreamHandler {
 		private boolean responseOrderingRequirementInitialized = false;
 
 		public static boolean isChannelReadBlocked(ChannelHandlerContext ctx) {
-			return getDispatcherContext(ctx).readBlockedState == ReadBlockedState.BLOCKED;
+			return ObjectUtil.same(getDispatcherContext(ctx).readBlockedState, ReadBlockedState.BLOCKED);
 		}
 
 		public static void blockChannelReads(ChannelHandlerContext ctx) {
@@ -261,9 +263,11 @@ public class NettyDispatcher extends SimpleChannelUpstreamHandler {
 		}
 
 		private static DispatcherContext getDispatcherContext(ChannelHandlerContext ctx) {
+
 			DispatcherContext dispatcherContext;
 			Object attachment = ctx.getAttachment();
-			if (attachment == null) {
+
+			if (ObjectUtil.isNull(attachment)) {
 				// 如果没有上下文就创建一个
 				dispatcherContext = new DispatcherContext();
 				ctx.setAttachment(dispatcherContext);
@@ -272,6 +276,7 @@ public class NettyDispatcher extends SimpleChannelUpstreamHandler {
 			else
 				throw new IllegalStateException(
 						"NettyDispatcher handler context should be of type NettyDispatcher.DispatcherContext .");
+
 			return dispatcherContext;
 		}
 

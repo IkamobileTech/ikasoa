@@ -12,6 +12,7 @@ import java.util.TreeMap;
 import com.ikasoa.core.IkasoaException;
 import com.ikasoa.core.loadbalance.LoadBalance;
 import com.ikasoa.core.loadbalance.ServerInfo;
+import com.ikasoa.core.utils.MapUtil;
 import com.ikasoa.core.utils.StringUtil;
 
 import lombok.NoArgsConstructor;
@@ -39,8 +40,8 @@ public class ConsistencyHashLoadBalanceImpl implements LoadBalance {
 	public ConsistencyHashLoadBalanceImpl(List<ServerInfo> serverInfoList, String hash) {
 		if (StringUtil.isEmpty(hash))
 			throw new IllegalArgumentException("Constructor must exist hash parameter !");
-		hashReference = new SoftReference<String>(InetAddress.getLocalHost().getHostAddress() + hash);
-		nodes = new TreeMap<>();
+		hashReference = new SoftReference<String>(StringUtil.merge(InetAddress.getLocalHost().getHostAddress(), hash));
+		nodes = MapUtil.newTreeMap();
 		for (int i = 0; i < serverInfoList.size(); i++) {
 			ServerInfo serverInfo = serverInfoList.get(i);
 			for (int j = 0; j < VIRTUAL_NUM; j++)
@@ -50,10 +51,8 @@ public class ConsistencyHashLoadBalanceImpl implements LoadBalance {
 
 	@Override
 	public ServerInfo getServerInfo() {
-		Long key = hash(computeMd5(hashReference.get()), 0);
-		SortedMap<Long, ServerInfo> tailMap = nodes.tailMap(key);
-		key = tailMap.isEmpty() ? nodes.firstKey() : tailMap.firstKey();
-		return nodes.get(key);
+		SortedMap<Long, ServerInfo> tailMap = nodes.tailMap(hash(computeMd5(hashReference.get()), 0));
+		return nodes.get(tailMap.isEmpty() ? nodes.firstKey() : tailMap.firstKey());
 	}
 
 	@Override
@@ -62,9 +61,8 @@ public class ConsistencyHashLoadBalanceImpl implements LoadBalance {
 	}
 
 	private long hash(byte[] digest, int nTime) {
-		long rv = ((long) (digest[3 + nTime * 4] & 0xFF) << 24) | ((long) (digest[2 + nTime * 4] & 0xFF) << 16)
-				| ((long) (digest[1 + nTime * 4] & 0xFF) << 8) | (digest[0 + nTime * 4] & 0xFF);
-		return rv & 0xffffffffL;
+		return (((long) (digest[3 + nTime * 4] & 0xFF) << 24) | ((long) (digest[2 + nTime * 4] & 0xFF) << 16)
+				| ((long) (digest[1 + nTime * 4] & 0xFF) << 8) | (digest[0 + nTime * 4] & 0xFF)) & 0xffffffffL;
 	}
 
 	private byte[] computeMd5(String value) {

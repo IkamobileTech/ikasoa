@@ -1,12 +1,15 @@
 package com.ikasoa.core.thrift.client.pool.impl;
 
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import com.ikasoa.core.IkasoaException;
+import com.ikasoa.core.thrift.client.pool.ClientSocketPoolParameters;
 import com.ikasoa.core.thrift.client.pool.SocketPool;
 import com.ikasoa.core.thrift.client.socket.ThriftSocket;
+import com.ikasoa.core.utils.MapUtil;
+import com.ikasoa.core.utils.ObjectUtil;
 import com.ikasoa.core.utils.ServerUtil;
 
 import lombok.NoArgsConstructor;
@@ -27,12 +30,7 @@ public class SimpleSocketPoolImpl implements SocketPool {
 	 */
 	private byte size = defaultSize;
 
-	/**
-	 * 连接超时时间
-	 */
-	private int time = defaultTime;
-
-	private static Map<String, SimpleSocketPoolImpl> selfMap = new HashMap<>();
+	private static Map<String, SimpleSocketPoolImpl> selfMap = MapUtil.newHashMap();
 
 	/**
 	 * 是否空闲 (true: 不空闲, false: 空闲)
@@ -45,55 +43,42 @@ public class SimpleSocketPoolImpl implements SocketPool {
 		this.size = size;
 	}
 
-	public SimpleSocketPoolImpl(int time) {
-		this.time = time;
-	}
-
-	public SimpleSocketPoolImpl(byte size, int time) {
-		this.size = size;
-		this.time = time;
-	}
-
 	/**
 	 * 初始化连接池
 	 * 
-	 * @param host
-	 *            服务器地址
-	 * @param port
-	 *            服务器端口
+	 * @param parameters
+	 *            客户端Socket参数对象
 	 * @return SimpleSocketPoolImpl 连接池对象
 	 */
-	public synchronized SimpleSocketPoolImpl init(String host, int port) {
-		if (!ServerUtil.checkHostAndPort(host, port))
+	public synchronized SimpleSocketPoolImpl init(ClientSocketPoolParameters parameters) {
+		if (!ServerUtil.checkHostAndPort(parameters.getHost(), parameters.getPort()))
 			throw new IllegalArgumentException("Server host or port is null !");
 		SimpleSocketPoolImpl self = new SimpleSocketPoolImpl();
-		selfMap.put(ServerUtil.buildCacheKey(host, port), self);
-		self.socketPool = new Hashtable<>(size);
+		selfMap.put(parameters.getKey(), self);
+		self.socketPool = MapUtil.newHashtable(size);
 		self.socketStatusArray = new boolean[size];
 		// 初始化连接池
 		log.debug("Initiation pool ......");
-		buildThriftSocketPool(host, port);
+		buildThriftSocketPool(parameters);
 		return self;
 	}
 
 	/**
 	 * 创建连接池
 	 * 
-	 * @param host
-	 *            服务器地址
-	 * @param port
-	 *            服务器端口
+	 * @param parameters
+	 *            Socket连接池参数对象
 	 */
-	public synchronized void buildThriftSocketPool(String host, int port) {
-		if (!ServerUtil.checkHostAndPort(host, port))
+	public synchronized void buildThriftSocketPool(ClientSocketPoolParameters parameters) {
+		if (!ServerUtil.checkHostAndPort(parameters.getHost(), parameters.getPort()))
 			throw new IllegalArgumentException("Server host or port is null !");
-		SimpleSocketPoolImpl self = selfMap.get(ServerUtil.buildCacheKey(host, port));
-		if (self == null)
-			self = init(host, port);
+		SimpleSocketPoolImpl self = selfMap.get(parameters.getKey());
+		if (ObjectUtil.isNull(self))
+			self = init(parameters);
 		try {
 			for (byte i = 0; i < size; i++) {
-				self.socketPool.put(new Byte(i), new ThriftSocket(host, port, time));
-				self.socketStatusArray[i] = Boolean.FALSE;
+				self.socketPool.put(new Byte(i), parameters.buildClientThriftSocket());
+				self.socketStatusArray[i] = false;
 			}
 		} catch (Exception e) {
 			throw new RuntimeException(e);
@@ -102,51 +87,58 @@ public class SimpleSocketPoolImpl implements SocketPool {
 
 	/**
 	 * 从连接池中获取一个空闲的ThriftSocket连接
+	 * 
+	 * @param parameters
+	 *            Socket连接池参数对象
+	 * @throws IkasoaException
+	 *             异常
 	 */
 	@Override
-	public synchronized ThriftSocket buildThriftSocket(String host, int port) {
-		if (!ServerUtil.checkHostAndPort(host, port))
+	public synchronized ThriftSocket buildThriftSocket(ClientSocketPoolParameters parameters) throws IkasoaException {
+		if (!ServerUtil.checkHostAndPort(parameters.getHost(), parameters.getPort()))
 			throw new IllegalArgumentException("Server host or port is null !");
-		SimpleSocketPoolImpl self = selfMap.get(ServerUtil.buildCacheKey(host, port));
-		if (self == null || self.socketStatusArray == null)
-			self = init(host, port);
+		SimpleSocketPoolImpl self = selfMap.get(parameters.getKey());
+		if (ObjectUtil.isNull(self) || ObjectUtil.isNull(self.socketStatusArray))
+			self = init(parameters);
 		byte i = 0;
 		for (; i < size; i++)
 			if (!self.socketStatusArray[i]) {
-				ThriftSocket thriftSocket = getThriftSocket(self, i, host, port);
+				ThriftSocket thriftSocket = getThriftSocket(self, i, parameters);
 				if (!thriftSocket.isOpen()) {
 					// 如果socket未连接,则新建一个socket
 					// TODO: 用isOpen方法判断是否保持连接并不准确,所以这里有可能会额外创建一些socket
-					thriftSocket = new ThriftSocket(host, port, time);
+					thriftSocket = parameters.buildClientThriftSocket();
 					self.socketPool.put(new Byte(i), thriftSocket);
 				}
-				self.socketStatusArray[i] = Boolean.TRUE;
+				self.socketStatusArray[i] = true;
 				return thriftSocket;
 			}
 		// 如果连接不够用,就初始化连接池.
 		try {
 			for (i = 0; i < size; i++) {
 				ThriftSocket thriftSocket = self.socketPool.get(i);
-				if (self.socketStatusArray[i] && (thriftSocket == null || thriftSocket.getSocket() == null
-						|| (thriftSocket.isOpen() && thriftSocket.getSocket().isClosed()))) {
-					return new ThriftSocket(host, port, time);
+				if (self.socketStatusArray[i]
+						&& (ObjectUtil.isNull(thriftSocket) || ObjectUtil.isNull(thriftSocket.getSocket())
+								|| (thriftSocket.isOpen() && thriftSocket.getSocket().isClosed()))) {
+					return parameters.buildClientThriftSocket();
 				}
 			}
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
 		log.warn("Not enough pooled connection ! Again retry initiation pool .");
-		init(host, port);
-		return buildThriftSocket(host, port);
+		init(parameters);
+		return buildThriftSocket(parameters);
 	}
 
-	private ThriftSocket getThriftSocket(SimpleSocketPoolImpl self, byte i, String host, int port) {
+	private ThriftSocket getThriftSocket(SimpleSocketPoolImpl self, byte i, ClientSocketPoolParameters parameters)
+			throws IkasoaException {
 		log.debug("Get socket number is {} .", i);
 		ThriftSocket thriftSocket = self.socketPool.get(new Byte(i));
-		if (thriftSocket == null || thriftSocket.getSocket() == null) {
+		if (ObjectUtil.isNull(thriftSocket) || ObjectUtil.isNull(thriftSocket.getSocket())) {
 			log.warn("Socket is null ! Again retry initiation pool .");
-			init(host, port);
-			return buildThriftSocket(host, port);
+			init(parameters);
+			return buildThriftSocket(parameters);
 		} else
 			return thriftSocket;
 	}
@@ -156,8 +148,8 @@ public class SimpleSocketPoolImpl implements SocketPool {
 	 */
 	@Override
 	public synchronized void releaseThriftSocket(ThriftSocket thriftSocket, String host, int port) {
-		if (thriftSocket == null || thriftSocket.getSocket() == null
-				|| thriftSocket.getSocket().getInetAddress() == null) {
+		if (ObjectUtil.isNull(thriftSocket) || ObjectUtil.isNull(thriftSocket.getSocket())
+				|| ObjectUtil.isNull(thriftSocket.getSocket().getInetAddress())) {
 			log.debug("Release unsuccessful .");
 			return;
 		}
@@ -167,11 +159,11 @@ public class SimpleSocketPoolImpl implements SocketPool {
 		}
 		log.debug("Release socket , host is {} and port is {} .", host, port);
 		SimpleSocketPoolImpl self = selfMap.get(ServerUtil.buildCacheKey(host, port));
-		if (self == null)
-			self = init(host, port);
+		if (ObjectUtil.isNull(self))
+			return;
 		for (byte i = 0; i < size; i++)
-			if (self.socketPool.get(new Byte(i)) == thriftSocket) {
-				self.socketStatusArray[i] = Boolean.FALSE;
+			if (ObjectUtil.same(self.socketPool.get(new Byte(i)), thriftSocket)) {
+				self.socketStatusArray[i] = false;
 				return;
 			}
 		// 如果socket不在池中,就直接关闭
@@ -185,7 +177,7 @@ public class SimpleSocketPoolImpl implements SocketPool {
 	 */
 	@Override
 	public synchronized void releaseAllThriftSocket() {
-		if (selfMap == null || selfMap.isEmpty())
+		if (MapUtil.isEmpty(selfMap))
 			return;
 		ThriftSocket socket;
 		for (Entry<String, SimpleSocketPoolImpl> entry : selfMap.entrySet()) {
@@ -194,7 +186,7 @@ public class SimpleSocketPoolImpl implements SocketPool {
 				socket = self.socketPool.get(new Byte(i));
 				try {
 					socket.close();
-					self.socketStatusArray[i] = Boolean.FALSE;
+					self.socketStatusArray[i] = false;
 				} catch (Exception e) {
 					log.error(e.getMessage());
 				}

@@ -1,7 +1,6 @@
 package com.ikasoa.core.utils;
 
 import java.net.ServerSocket;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -18,7 +17,7 @@ import lombok.experimental.UtilityClass;
 @UtilityClass
 public class ServerUtil {
 
-	private static Map<String, Integer> portCacheMap = new HashMap<>();
+	private static Map<String, Integer> portCacheMap = MapUtil.newHashMap();
 
 	public static boolean isIpv4(String ip) {
 		return Pattern
@@ -59,7 +58,7 @@ public class ServerUtil {
 	}
 
 	public static String buildCacheKey(String serverHost, int serverPort) {
-		return new StringBuilder(serverHost).append(":").append(serverPort).toString();
+		return StringUtil.merge(serverHost, ":", serverPort);
 	}
 
 }

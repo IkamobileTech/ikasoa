@@ -8,7 +8,7 @@ import lombok.SneakyThrows;
 import lombok.experimental.UtilityClass;
 
 /**
- * 字符串常用操作工具类
+ * 字符串工具类
  * 
  * @author <a href="mailto:larry7696@gmail.com">Larry</a>
  * @version 0.2
@@ -19,7 +19,7 @@ public class StringUtil {
 	private final static String HEX_16 = "0123456789ABCDEF";
 
 	public static boolean isEmpty(String str) {
-		return str == null || str.length() == 0;
+		return ObjectUtil.isNull(str) || str.length() == 0;
 	}
 
 	public static boolean andIsEmpty(String... strs) {
@@ -35,13 +35,12 @@ public class StringUtil {
 	}
 
 	public static boolean isBlank(String str) {
-		int strLen;
-		if (str == null || (strLen = str.length()) == 0)
-			return Boolean.TRUE;
-		for (int i = 0; i < strLen; i++)
+		if (isEmpty(str))
+			return true;
+		for (int i = 0; i < str.length(); i++)
 			if (!Character.isWhitespace(str.charAt(i)))
-				return Boolean.FALSE;
-		return Boolean.TRUE;
+				return false;
+		return true;
 	}
 
 	public static boolean andIsBlank(String... strs) {
@@ -57,8 +56,7 @@ public class StringUtil {
 	}
 
 	public static boolean equals(String str1, String str2) {
-		return str1 == null && str2 == null ? Boolean.TRUE
-				: str1 != null && str2 != null ? str1.equals(str2) : Boolean.FALSE;
+		return ObjectUtil.andIsNull(str1, str2) ? true : !ObjectUtil.orIsNull(str1, str2) ? str1.equals(str2) : false;
 	}
 
 	public static byte[] strToBytes(String str) {
@@ -73,13 +71,13 @@ public class StringUtil {
 		if (isEmpty(str))
 			return null;
 		char[] chars = HEX_16.toCharArray();
-		StringBuilder sb = new StringBuilder("");
 		byte[] bytes = str.getBytes();
 		int bit;
-		for (int i = 0; i < bytes.length; i++) {
-			bit = (bytes[i] & 0x0f0) >> 4;
+		StringBuilder sb = new StringBuilder();
+		for (byte b : bytes) {
+			bit = (b & 0x0f0) >> 4;
 			sb.append(chars[bit]);
-			bit = bytes[i] & 0x0f;
+			bit = b & 0x0f;
 			sb.append(chars[bit]);
 		}
 		return sb.toString().trim();
@@ -100,7 +98,7 @@ public class StringUtil {
 	}
 
 	public static byte[] hexStrToBytes(String hexStr) {
-		if (hexStr == null)
+		if (ObjectUtil.isNull(hexStr))
 			return null;
 		if (hexStr.length() == 0)
 			return new byte[0];
@@ -111,7 +109,7 @@ public class StringUtil {
 	}
 
 	public static String bytesToHexStr(byte[] bytes) {
-		if (bytes == null)
+		if (ObjectUtil.isNull(bytes))
 			return null;
 		char[] hexArray = HEX_16.toCharArray();
 		char[] hexChars = new char[bytes.length * 2];
@@ -123,9 +121,31 @@ public class StringUtil {
 		return new String(hexChars);
 	}
 
+	public static String merge(Object... objects) {
+		StringBuilder sb = new StringBuilder();
+		for (Object object : objects)
+			sb.append(object);
+		return sb.toString();
+	}
+
 	@SneakyThrows
 	public static int toInt(String str) {
 		return isNotEmpty(str) ? Integer.parseInt(str.trim()) : 0;
+	}
+
+	@SneakyThrows
+	public static long toLong(String str) {
+		return isNotEmpty(str) ? Long.parseLong(str.trim()) : 0;
+	}
+
+	@SneakyThrows
+	public static double toDouble(String str) {
+		return isNotEmpty(str) ? Double.parseDouble(str.trim()) : 0;
+	}
+
+	@SneakyThrows
+	public static float toFloat(String str) {
+		return isNotEmpty(str) ? Float.parseFloat(str.trim()) : 0;
 	}
 
 	@SneakyThrows

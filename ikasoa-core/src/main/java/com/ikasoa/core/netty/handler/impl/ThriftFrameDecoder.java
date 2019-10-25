@@ -15,6 +15,7 @@ import org.jboss.netty.handler.codec.frame.TooLongFrameException;
 
 import com.ikasoa.core.netty.TNettyTransport;
 import com.ikasoa.core.netty.TNettyTransportType;
+import com.ikasoa.core.utils.ObjectUtil;
 import com.ikasoa.core.netty.TNettyMessage;
 
 /**
@@ -45,16 +46,14 @@ public class ThriftFrameDecoder extends FrameDecoder {
 		short firstByte = buffer.getUnsignedByte(0);
 		if (firstByte >= 0x80) {
 			ChannelBuffer messageBuffer = tryDecodeUnframedMessage(ctx, channel, buffer, inputProtocolFactory);
-			if (messageBuffer == null)
-				return null;
-			return new TNettyMessage(messageBuffer, TNettyTransportType.UNFRAMED);
+			return ObjectUtil.isNull(messageBuffer) ? null
+					: new TNettyMessage(messageBuffer, TNettyTransportType.UNFRAMED);
 		} else if (buffer.readableBytes() < MESSAGE_FRAME_SIZE)
 			return null;
 		else {
 			ChannelBuffer messageBuffer = tryDecodeFramedMessage(ctx, channel, buffer, true);
-			if (messageBuffer == null)
-				return null;
-			return new TNettyMessage(messageBuffer, TNettyTransportType.FRAMED);
+			return ObjectUtil.isNull(messageBuffer) ? null
+					: new TNettyMessage(messageBuffer, TNettyTransportType.FRAMED);
 		}
 	}
 
@@ -64,7 +63,6 @@ public class ThriftFrameDecoder extends FrameDecoder {
 		int messageStartReaderIndex = buffer.readerIndex();
 		int messageContentsOffset = stripFraming ? messageStartReaderIndex + MESSAGE_FRAME_SIZE
 				: messageStartReaderIndex;
-
 		int messageLength = buffer.getInt(messageStartReaderIndex) + MESSAGE_FRAME_SIZE;
 		int messageContentsLength = messageStartReaderIndex + messageLength - messageContentsOffset;
 
@@ -88,18 +86,15 @@ public class ThriftFrameDecoder extends FrameDecoder {
 			TProtocolFactory inputProtocolFactory) throws TException {
 
 		int messageLength = 0;
-
 		int messageStartReaderIndex = buffer.readerIndex();
 
 		try {
 			TNettyTransport decodeAttemptTransport = new TNettyTransport(channel, buffer, TNettyTransportType.UNFRAMED);
 			int initialReadBytes = decodeAttemptTransport.getReadByteCount();
 			TProtocol inputProtocol = inputProtocolFactory.getProtocol(decodeAttemptTransport);
-
 			inputProtocol.readMessageBegin();
 			TProtocolUtil.skip(inputProtocol, TType.STRUCT);
 			inputProtocol.readMessageEnd();
-
 			messageLength = decodeAttemptTransport.getReadByteCount() - initialReadBytes;
 		} catch (TTransportException | IndexOutOfBoundsException e) {
 			return null;

@@ -17,7 +17,7 @@ public class StringUtilTest extends TestCase {
 		assertTrue(StringUtil.isEmpty(""));
 		assertFalse(StringUtil.isEmpty(" "));
 	}
-	
+
 	@Test
 	public void testAndIsEmpty() {
 		assertTrue(StringUtil.andIsEmpty(null, ""));
@@ -49,7 +49,7 @@ public class StringUtilTest extends TestCase {
 		assertTrue(StringUtil.isBlank(""));
 		assertTrue(StringUtil.isBlank(" "));
 	}
-	
+
 	@Test
 	public void testAndIsBlank() {
 		assertTrue(StringUtil.andIsBlank(null, ""));
@@ -101,10 +101,34 @@ public class StringUtilTest extends TestCase {
 	}
 
 	@Test
+	public void testMerge() {
+		assertEquals(StringUtil.merge("a", "b"), "ab");
+		assertEquals(StringUtil.merge("a", "b", "c"), "abc");
+		assertEquals(StringUtil.merge("a", "b", "c", "d"), "abcd");
+		assertEquals(StringUtil.merge("a", "b", "c", "d", "e"), "abcde");
+		assertEquals(StringUtil.merge("a", "b", "c", "d", "e", "f"), "abcdef");
+	}
+
+	@Test
 	public void testToInt() {
 		assertEquals(StringUtil.toInt("123 "), 123);
 	}
-	
+
+	@Test
+	public void testToLong() {
+		assertEquals(StringUtil.toLong("123 "), 123L);
+	}
+
+	@Test
+	public void testToDouble() {
+		assertEquals(StringUtil.toDouble("123.321 "), 123.321);
+	}
+
+	@Test
+	public void testToFloat() {
+		assertEquals(StringUtil.toFloat("123.321 "), 123.321F);
+	}
+
 	@Test
 	public void testToMD5() {
 		assertEquals(StringUtil.toMD5("test123"), "cc03e747a6afbbcbf8be7668acfebee5");

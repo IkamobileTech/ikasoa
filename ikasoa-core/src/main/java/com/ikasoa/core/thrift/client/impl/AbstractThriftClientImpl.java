@@ -10,7 +10,9 @@ import com.ikasoa.core.ServerCheck;
 import com.ikasoa.core.ServerCheckFailProcessor;
 import com.ikasoa.core.thrift.client.ThriftClient;
 import com.ikasoa.core.thrift.client.ThriftClientConfiguration;
+import com.ikasoa.core.thrift.client.pool.ClientSocketPoolParameters;
 import com.ikasoa.core.thrift.client.socket.ThriftSocket;
+import com.ikasoa.core.utils.ObjectUtil;
 import com.ikasoa.core.utils.ServerUtil;
 import com.ikasoa.core.utils.StringUtil;
 
@@ -26,7 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public abstract class AbstractThriftClientImpl implements ThriftClient {
 
-	protected ThreadLocal<ThriftSocket> socketThread = new ThreadLocal<>();
+	protected final ThreadLocal<ThriftSocket> socketThread = new ThreadLocal<>();
 
 	/**
 	 * 需连接的Thrift服务地址
@@ -58,20 +60,22 @@ public abstract class AbstractThriftClientImpl implements ThriftClient {
 
 	@Override
 	public TTransport getTransport() throws IkasoaException {
-		if (getServerCheck() != null && !getServerCheck().check(getServerHost(), getServerPort()))
+		if (ObjectUtil.isNotNull(getServerCheck()) && !getServerCheck().check(getServerHost(), getServerPort()))
 			// 如果服务器检测不可用,需要做相应的处理.默认为抛异常.
 			getServerCheckFailProcessor().process(this);
 		return getTransport(getServerHost(), getServerPort());
 	}
 
 	protected TTransport getTransport(String serverHost, int serverPort) throws IkasoaException {
-		socketThread.set(getThriftClientConfiguration().getSocketPool().buildThriftSocket(serverHost, serverPort));
+		socketThread
+				.set(getThriftClientConfiguration().getSocketPool().buildThriftSocket(new ClientSocketPoolParameters(
+						serverHost, serverPort, 0, getThriftClientConfiguration().getSslTransportParameters())));
 		return getThriftClientConfiguration().getTransportFactory().getTransport(socketThread.get());
 	}
 
 	@Override
 	public TProtocol getProtocol(TTransport transport) {
-		if (transport == null)
+		if (ObjectUtil.isNull(transport))
 			throw new IllegalArgumentException("'transport' is null !");
 		return getThriftClientConfiguration().getProtocolFactory().getProtocol(transport);
 	}
@@ -100,7 +104,7 @@ public abstract class AbstractThriftClientImpl implements ThriftClient {
 
 	@Override
 	public ThriftClientConfiguration getThriftClientConfiguration() {
-		if (configuration == null)
+		if (ObjectUtil.isNull(configuration))
 			throw new RuntimeException("Get thrift protocol failed ! Configuration is null !");
 		return configuration;
 	}
@@ -110,10 +114,10 @@ public abstract class AbstractThriftClientImpl implements ThriftClient {
 	}
 
 	protected ServerCheck getServerCheck(ServerCheck defaultServerCheck) {
-		if (defaultServerCheck == null)
+		if (ObjectUtil.isNull(defaultServerCheck))
 			log.debug("'defaultServerCheck' is null !");
-		if (serverCheck == null)
-			serverCheck = getThriftClientConfiguration().getServerCheck() == null ? defaultServerCheck
+		if (ObjectUtil.isNull(serverCheck))
+			serverCheck = ObjectUtil.isNull(getThriftClientConfiguration().getServerCheck()) ? defaultServerCheck
 					: getThriftClientConfiguration().getServerCheck();
 		return serverCheck;
 	}
@@ -123,12 +127,11 @@ public abstract class AbstractThriftClientImpl implements ThriftClient {
 	}
 
 	protected ServerCheckFailProcessor getServerCheckFailProcessor(ServerCheckFailProcessor defaultProcessor) {
-		if (defaultProcessor == null)
+		if (ObjectUtil.isNull(defaultProcessor))
 			log.debug("'defaultProcessor' is null !");
-		if (serverCheckFailProcessor == null)
-			serverCheckFailProcessor = getThriftClientConfiguration().getServerCheckFailProcessor() == null
-					? defaultProcessor
-					: getThriftClientConfiguration().getServerCheckFailProcessor();
+		if (ObjectUtil.isNull(serverCheckFailProcessor))
+			serverCheckFailProcessor = ObjectUtil.isNull(getThriftClientConfiguration().getServerCheckFailProcessor())
+					? defaultProcessor : getThriftClientConfiguration().getServerCheckFailProcessor();
 		return serverCheckFailProcessor;
 	}
 
