@@ -4,10 +4,9 @@ import java.util.List;
 
 import com.ikasoa.core.IkasoaException;
 import com.ikasoa.core.loadbalance.LoadBalance;
-import com.ikasoa.core.loadbalance.ServerInfo;
+import com.ikasoa.core.loadbalance.Node;
 import com.ikasoa.core.utils.ListUtil;
 import com.ikasoa.core.utils.ObjectUtil;
-import com.ikasoa.core.utils.StringUtil;
 
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +19,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @NoArgsConstructor
 @Slf4j
-public class PollingLoadBalanceImpl implements LoadBalance {
+public class PollingLoadBalanceImpl<S> implements LoadBalance<S> {
 
 	/**
 	 * 临时记数器
@@ -28,27 +27,27 @@ public class PollingLoadBalanceImpl implements LoadBalance {
 	private int i, j = 0;
 
 	/**
-	 * 服务器地址和权重列表
+	 * 服务器节点和权重列表
 	 */
-	private List<ServerInfo> serverInfoList;
+	private List<Node<S>> nodeList;
 
 	/**
-	 * 当前服务器地址
+	 * 当前服务器节点
 	 */
-	private ServerInfo serverInfo;
+	private Node<S> node;
 
-	public PollingLoadBalanceImpl(List<ServerInfo> serverInfoList) {
-		init(serverInfoList);
+	public PollingLoadBalanceImpl(List<Node<S>> nodeList) {
+		init(nodeList);
 	}
 
-	public PollingLoadBalanceImpl(List<ServerInfo> serverInfoList, String context) {
-		init(serverInfoList);
+	public PollingLoadBalanceImpl(List<Node<S>> nodeList, String context) {
+		init(nodeList);
 	}
 
-	private void init(List<ServerInfo> serverInfoList) {
-		if (ListUtil.isEmpty(serverInfoList))
-			throw new IllegalArgumentException("'serverInfoList' is null !");
-		this.serverInfoList = serverInfoList;
+	private void init(List<Node<S>> nodeList) {
+		if (ListUtil.isEmpty(nodeList))
+			throw new IllegalArgumentException("'nodeList' is null !");
+		this.nodeList = nodeList;
 		try {
 			next();
 		} catch (IkasoaException e) {
@@ -57,24 +56,23 @@ public class PollingLoadBalanceImpl implements LoadBalance {
 	}
 
 	@Override
-	public ServerInfo getServerInfo() {
-		if (ObjectUtil.isNull(serverInfo))
-			log.error("'serverInfo' is null !");
-		return serverInfo;
+	public Node<S> getNode() {
+		if (ObjectUtil.isNull(node))
+			log.error("'node' is null !");
+		return node;
 	}
 
 	@Override
-	public synchronized ServerInfo next() throws IkasoaException {
-		int size = serverInfoList.size();
+	public synchronized Node<S> next() throws IkasoaException {
+		int size = nodeList.size();
 		if (size == 0)
-			throw new IkasoaException("Get server host failed !");
-		ServerInfo serverInfo = serverInfoList.get(i);
-		if (ObjectUtil.isNull(serverInfo) || StringUtil.isEmpty(serverInfo.getHost())
-				|| serverInfo.getWeightNumber() < 0)
-			throw new IkasoaException("serverInfo error !");
-		this.serverInfo = serverInfo;
-		int weightNumber = serverInfo.getWeightNumber();
-		log.debug("ServerHost is : {}, WeightNumber is : {}", serverInfo.getHost(), weightNumber);
+			throw new IkasoaException("Get node failed !");
+		Node<S> node = nodeList.get(i);
+		if (ObjectUtil.isNull(node) || node.getWeightNumber() < 0)
+			throw new IkasoaException("Node error !");
+		this.node = node;
+		int weightNumber = node.getWeightNumber();
+		log.debug("Node is : {}, WeightNumber is : {}", node.getValue().toString(), weightNumber);
 		if (size > i + 1)
 			if (weightNumber > j)
 				j++;
@@ -86,7 +84,7 @@ public class PollingLoadBalanceImpl implements LoadBalance {
 			j++;
 		else
 			i = j = 0;
-		return getServerInfo();
+		return this.getNode();
 	}
 
 }

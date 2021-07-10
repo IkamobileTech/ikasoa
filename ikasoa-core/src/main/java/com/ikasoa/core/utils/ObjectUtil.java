@@ -1,7 +1,5 @@
 package com.ikasoa.core.utils;
 
-import java.util.Arrays;
-
 import lombok.experimental.UtilityClass;
 
 /**
@@ -22,11 +20,15 @@ public class ObjectUtil {
 	}
 
 	public static boolean andIsNull(Object... objects) {
-		return Arrays.asList(objects).stream().filter(ObjectUtil::isNotNull).count() == 0;
+		return ListUtil.buildArrayList(objects).stream().filter(ObjectUtil::isNotNull).count() == 0;
 	}
 
 	public static boolean orIsNull(Object... objects) {
-		return Arrays.asList(objects).stream().filter(ObjectUtil::isNull).count() > 0;
+		return ListUtil.buildArrayList(objects).stream().filter(ObjectUtil::isNull).count() > 0;
+	}
+
+	public static boolean equals(Object obj1, Object obj2) {
+		return andIsNull(obj1, obj2) ? true : !orIsNull(obj1, obj2) ? obj1.equals(obj2) : false;
 	}
 
 	public static boolean same(Object obj1, Object obj2) {
